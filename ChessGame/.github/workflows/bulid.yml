@@ -1,0 +1,30 @@
+name: Build and Run Chess Game
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Compile
+        run: javac MainFrame.java
+
+      - name: Install Xvfb        # ← ADD THIS
+        run: sudo apt-get install -y xvfb
+
+      - name: Run with virtual display   # ← AND THIS
+        run: xvfb-run java MainFrame
