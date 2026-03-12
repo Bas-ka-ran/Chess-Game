@@ -1,2 +1,5 @@
 /workspaces/Chess-Game/ChessGame/src/main/java/chess/App.java
-/workspaces/Chess-Game/ChessGame/src/main/java/chess/SmokeTest.java
+/workspaces/Chess-Game/ChessGame/src/main/java/chess/gui/BoardPanel.java
+/workspaces/Chess-Game/ChessGame/src/main/java/chess/gui/MainFrame.java
+/workspaces/Chess-Game/ChessGame/src/main/java/chess/gui/PieceRenderer.java
+/workspaces/Chess-Game/ChessGame/src/main/java/chess/gui/TimerPanel.java

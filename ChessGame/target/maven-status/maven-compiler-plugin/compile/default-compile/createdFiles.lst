@@ -1,2 +1,5 @@
-chess/SmokeTest.class
+chess/gui/PieceRenderer.class
+chess/gui/BoardPanel.class
+chess/gui/TimerPanel.class
 chess/App.class
+chess/gui/MainFrame.class

@@ -1,3 +1,4 @@
+package chess.gui;
 import javax.swing.*;
 import java.awt.*;
 
