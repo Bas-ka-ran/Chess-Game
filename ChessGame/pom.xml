@@ -1,13 +1,15 @@
-<project xmlns="http://maven.apache.org" 
-         xmlns:xsi="http://www.w3.org"
-         xsi:schemaLocation="http://maven.apache.org http://maven.apache.org">
+<project>
   <modelVersion>4.0.0</modelVersion>
+
   <groupId>chess</groupId>
   <artifactId>chess-game</artifactId>
   <version>1.0</version>
+  <packaging>jar</packaging>
 
   <properties>
-    <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
   <repositories>
@@ -28,13 +30,19 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>exec-maven-plugin</artifactId>
-        <version>3.1.0</version>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.3.0</version>
         <configuration>
-          <mainClass>chess.gui.MainFrame</mainClass>
+          <archive>
+            <manifest>
+              <mainClass>chess.client.ChessClient</mainClass>
+            </manifest>
+          </archive>
+          <finalName>chess</finalName>
         </configuration>
       </plugin>
     </plugins>
   </build>
+
 </project>

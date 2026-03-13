@@ -1,5 +1,8 @@
-chess/gui/PieceRenderer.class
-chess/gui/BoardPanel.class
-chess/gui/TimerPanel.class
+TimerPanel.class
 chess/App.class
-chess/gui/MainFrame.class
+chess/shared/GameState.class
+PieceRenderer.class
+chess/shared/ChessMessage.class
+BoardPanel.class
+chess/shared/MessageType.class
+MainFrame.class

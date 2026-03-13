@@ -3,3 +3,6 @@
 /workspaces/Chess-Game/ChessGame/src/main/java/chess/gui/MainFrame.java
 /workspaces/Chess-Game/ChessGame/src/main/java/chess/gui/PieceRenderer.java
 /workspaces/Chess-Game/ChessGame/src/main/java/chess/gui/TimerPanel.java
+/workspaces/Chess-Game/ChessGame/src/main/java/chess/shared/ChessMessage.java
+/workspaces/Chess-Game/ChessGame/src/main/java/chess/shared/GameState.java
+/workspaces/Chess-Game/ChessGame/src/main/java/chess/shared/MessageType.java
