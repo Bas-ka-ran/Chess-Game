@@ -1,4 +1,4 @@
-package chess.gui;
+//package chess.gui;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.io.File;
