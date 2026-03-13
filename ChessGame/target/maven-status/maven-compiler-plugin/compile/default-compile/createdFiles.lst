@@ -1,7 +1,9 @@
+chess/server/GameSession.class
 TimerPanel.class
-chess/App.class
 chess/shared/GameState.class
 PieceRenderer.class
+chess/server/ClientHandler.class
+chess/server/ChessServer.class
 chess/shared/ChessMessage.class
 BoardPanel.class
 chess/shared/MessageType.class
