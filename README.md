@@ -1,10 +1,10 @@
-# ♟️ Chess Game with Time Limit
+#  Chess Game with Time Limit
 
 A multiplayer chess game built in **Java** with a **Swing GUI** and **client-server architecture** over TCP sockets. Two players connect to a central server and play in real time with countdown clocks, move validation, check detection, and game-over handling.
 
 ---
 
-## 📋 Table of Contents
+##  Table of Contents
 
 - [Features](#features)
 - [Tech Stack](#tech-stack)
@@ -20,27 +20,27 @@ A multiplayer chess game built in **Java** with a **Swing GUI** and **client-ser
 
 ---
 
-## ✨ Features
+##  Features
 
-- ♟️ Full chess rules via the [chesslib](https://github.com/bhlangonijr/chesslib) library
-- 🌐 Client-server architecture over TCP (port 5555)
-- 👥 Multiple simultaneous games — each pair of players gets their own session
-- ⏱️ Countdown clocks for both players (default: 10 minutes each)
-- 🔴 **Red king highlight** when a player is in check
-- 🟡 **Yellow highlight** on the selected piece
-- 🟢 **Green dots** showing all legal moves for the selected piece
-- 🔵 **Blue highlight** on the last move played
-- 👑 **Pawn promotion dialog** — choose Queen, Rook, Bishop, or Knight
-- ⚡ **30-second first-move timeout** — White must move within 30 seconds or forfeits
-- 🕐 **Real-time clock watchdog** — server detects flag fall even if no move is sent
-- 📋 **Move history panel** showing all moves in UCI notation
-- 🏷️ **Player names** displayed on each timer panel
-- 🔁 **Play Again** or **Exit** after game over
-- 🔌 **Disconnect handling** — opponent is notified if a player leaves
+-  Full chess rules via the [chesslib](https://github.com/bhlangonijr/chesslib) library
+-  Client-server architecture over TCP (port 5555)
+-  Multiple simultaneous games — each pair of players gets their own session
+-  Countdown clocks for both players (default: 10 minutes each)
+-  **Red king highlight** when a player is in check
+-  **Yellow highlight** on the selected piece
+-  **Green dots** showing all legal moves for the selected piece
+-  **Blue highlight** on the last move played
+-  **Pawn promotion dialog** — choose Queen, Rook, Bishop, or Knight
+-  **30-second first-move timeout** — White must move within 30 seconds or forfeits
+-  **Real-time clock watchdog** — server detects flag fall even if no move is sent
+-  **Move history panel** showing all moves in UCI notation
+-  **Player names** displayed on each timer panel
+-  **Play Again** or **Exit** after game over
+-  **Disconnect handling** — opponent is notified if a player leaves
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -53,7 +53,7 @@ A multiplayer chess game built in **Java** with a **Swing GUI** and **client-ser
 
 ---
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 chess-game/
@@ -82,7 +82,7 @@ chess-game/
 
 ---
 
-## ✅ Prerequisites
+##  Prerequisites
 
 - **Java 17+** — check with `java --version`
 - **Maven 3.6+** — check with `mvn --version`
@@ -90,7 +90,7 @@ chess-game/
 
 ---
 
-## 🔨 Building the Project
+##  Building the Project
 
 **Important:** Build a fat JAR so all dependencies (chesslib) are included.
 
@@ -124,7 +124,7 @@ The output JAR will be at `target/chess-game-1.0.jar`.
 
 ---
 
-## ▶️ Running the Game
+##  Running the Game
 
 You need **3 terminals** — one for the server and one per player.
 
@@ -158,7 +158,7 @@ java -cp target/chess-game-1.0.jar chess.client.ChessClient
 
 ---
 
-## 🎮 How to Play
+##  How to Play
 
 1. **Select a piece** — Click any of your pieces. It highlights yellow and green dots appear on all legal squares.
 2. **Move the piece** — Click any green dot to send the move to the server.
@@ -177,14 +177,14 @@ java -cp target/chess-game-1.0.jar chess.client.ChessClient
 │      (560×560)       │  2. e7e5 │
 │                      │  ...     │
 ├──────────────────────┴──────────┤
-│  ⏳ Waiting for first move...   │  ← Status label
+│     Waiting for first move...   │  ← Status label
 │  Your Name            10:00     │  ← Your timer (bottom)
 └─────────────────────────────────┘
 ```
 
 ---
 
-## 🏗️ Architecture Overview
+##  Architecture Overview
 
 ```
 Client (White)                Server                Client (Black)
@@ -220,7 +220,7 @@ ChessClient ──── TCP ────► ChessServer
 
 ---
 
-## ⚖️ Game Rules & Special Cases
+##  Game Rules & Special Cases
 
 | Situation | Behaviour |
 |---|---|
@@ -239,7 +239,7 @@ ChessClient ──── TCP ────► ChessServer
 
 ---
 
-## ⚠️ Known Limitations
+##  Known Limitations
 
 - Piece images are **Unicode symbols** — optional PNG support can be added in `PieceRenderer.java`.
 - Only **2 players per game** — no AI opponent yet.
@@ -247,7 +247,7 @@ ChessClient ──── TCP ────► ChessServer
 
 ---
 
-## 📄 License
+##  License
 
 MIT License — free to use, modify, and distribute.
 
