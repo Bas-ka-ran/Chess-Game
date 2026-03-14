@@ -39,7 +39,7 @@ public class BoardPanel extends JPanel {
         this.myColor = myColor;
         this.client  = client;
         this.board   = new Board();
-        board.loadFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        board.loadFromFen(START_FEN);
         setPreferredSize(new Dimension(560, 560));
         addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent e) { handleClick(e); }
