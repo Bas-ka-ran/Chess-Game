@@ -6,7 +6,6 @@ chess/client/MessageListener.class
 chess/shared/GameState.class
 chess/gui/MainFrame.class
 chess/shared/MessageType.class
-chess/server/GameSession$1.class
 chess/gui/BoardPanel.class
 chess/client/ChessClient.class
 chess/client/NetworkThread.class
