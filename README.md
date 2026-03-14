@@ -1,10 +1,10 @@
-#  Chess Game with Time Limit
+# Chess Game with Time Limit
 
 A multiplayer chess game built in **Java** with a **Swing GUI** and **client-server architecture** over TCP sockets. Two players connect to a central server and play in real time with countdown clocks, move validation, check detection, and game-over handling.
 
 ---
 
-##  Table of Contents
+## Table of Contents
 
 - [Features](#features)
 - [Tech Stack](#tech-stack)
@@ -20,7 +20,7 @@ A multiplayer chess game built in **Java** with a **Swing GUI** and **client-ser
 
 ---
 
-##  Features
+## Features
 
 -  Full chess rules via the [chesslib](https://github.com/bhlangonijr/chesslib) library
 -  Client-server architecture over TCP (port 5555)
@@ -40,7 +40,7 @@ A multiplayer chess game built in **Java** with a **Swing GUI** and **client-ser
 
 ---
 
-##  Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -53,7 +53,7 @@ A multiplayer chess game built in **Java** with a **Swing GUI** and **client-ser
 
 ---
 
-##  Project Structure
+## Project Structure
 
 ```
 chess-game/
@@ -82,7 +82,7 @@ chess-game/
 
 ---
 
-##  Prerequisites
+## Prerequisites
 
 - **Java 17+** — check with `java --version`
 - **Maven 3.6+** — check with `mvn --version`
@@ -90,7 +90,7 @@ chess-game/
 
 ---
 
-##  Building the Project
+## Building the Project
 
 **Important:** Build a fat JAR so all dependencies (chesslib) are included.
 
@@ -124,7 +124,7 @@ The output JAR will be at `target/chess-game-1.0.jar`.
 
 ---
 
-##  Running the Game
+## Running the Game
 
 You need **3 terminals** — one for the server and one per player.
 
@@ -158,7 +158,7 @@ java -cp target/chess-game-1.0.jar chess.client.ChessClient
 
 ---
 
-##  How to Play
+## How to Play
 
 1. **Select a piece** — Click any of your pieces. It highlights yellow and green dots appear on all legal squares.
 2. **Move the piece** — Click any green dot to send the move to the server.
