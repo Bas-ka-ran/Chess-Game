@@ -1,7 +1,6 @@
 package chess.client;
 
 import chess.shared.ChessMessage;
-import chess.shared.MessageType;
 
 import javax.swing.*;
 import java.io.*;
@@ -13,28 +12,25 @@ public class ChessClient {
     private ObjectOutputStream out;
     private ObjectInputStream  in;
     private MessageListener    listener;
-    private String             myName;
 
     public ChessClient(MessageListener listener) {
         this.listener = listener;
     }
 
-    public String getMyName() { return myName; }
-
-    public void connect(String host, int port, String name) throws IOException {
-        this.myName = name;
+    public void connect(String host, int port) throws IOException {
         socket = new Socket(host, port);
-
-        out = new ObjectOutputStream(socket.getOutputStream());
+        out    = new ObjectOutputStream(socket.getOutputStream());
         out.flush();
-        in  = new ObjectInputStream(socket.getInputStream());
+        in     = new ObjectInputStream(socket.getInputStream());
 
-        // Send name to server immediately
-        out.writeObject(ChessMessage.playerInfo(name));
-        out.flush();
+        // ── NEW: tell the GUI we connected, now waiting for player 2 ──
+        if (listener instanceof chess.gui.MainFrame) {
+            SwingUtilities.invokeLater(
+                ((chess.gui.MainFrame) listener)::showConnected
+            );
+        }
 
-        NetworkThread net = new NetworkThread(in, listener);
-        net.start();
+        new NetworkThread(in, listener).start();
     }
 
     public void sendMove(String uci) {
@@ -47,31 +43,24 @@ public class ChessClient {
     }
 
     public void close() {
-        try { if (socket != null) socket.close(); }
-        catch (IOException ignored) {}
+        try { if (socket != null) socket.close(); } catch (IOException ignored) {}
     }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-
-            // Ask for server address
-            String host = JOptionPane.showInputDialog(
-                null, "Enter server address:", "Server", JOptionPane.QUESTION_MESSAGE);
+            String host = JOptionPane.showInputDialog(null,
+                "Enter server address:", "Connect to Chess Server",
+                JOptionPane.QUESTION_MESSAGE);
             if (host == null || host.isBlank()) host = "localhost";
 
-            // Ask for player name
-            String name = JOptionPane.showInputDialog(
-                null, "Enter your name:", "Player Name", JOptionPane.QUESTION_MESSAGE);
-            if (name == null || name.isBlank()) name = "Anonymous";
-
-            chess.gui.MainFrame frame = new chess.gui.MainFrame(name);
+            chess.gui.MainFrame frame = new chess.gui.MainFrame();
             ChessClient client = new ChessClient(frame);
             frame.setClient(client);
             frame.showWaiting();
             frame.setVisible(true);
 
             try {
-                client.connect(host.trim(), 5555, name);
+                client.connect(host.trim(), 5555);
             } catch (IOException e) {
                 JOptionPane.showMessageDialog(null,
                     "Could not connect to " + host + ":5555\n" + e.getMessage(),

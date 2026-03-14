@@ -1,59 +1,67 @@
 package chess.gui;
 
 import chess.shared.GameState;
+import com.github.bhlangonijr.chesslib.Side;
 
 import javax.swing.*;
 import java.awt.*;
 
 public class TimerPanel extends JPanel {
 
-    private final JLabel nameLabel  = new JLabel("", SwingConstants.LEFT);
-    private final JLabel clockLabel = new JLabel("10:00", SwingConstants.RIGHT);
-    private long millisLeft = 600_000;
-    private boolean active = false;
+    private final JLabel whiteLabel = new JLabel("10:00", SwingConstants.CENTER);
+    private final JLabel blackLabel = new JLabel("10:00", SwingConstants.CENTER);
+
+    private long whiteMillis = 600_000;
+    private long blackMillis = 600_000;
+    private Side activeSide  = Side.WHITE;
 
     private final javax.swing.Timer localTick;
 
-    public TimerPanel(String playerName, Color bg, Color fg) {
-        setLayout(new BorderLayout(10, 0));
-        setBackground(bg);
-        setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+    // ── FIX: no-arg constructor ──
+    public TimerPanel() {
+        setLayout(new GridLayout(1, 2));
+        setPreferredSize(new Dimension(600, 56));
 
-        nameLabel.setText(playerName);
-        nameLabel.setFont(new Font("SansSerif", Font.BOLD, 15));
-        nameLabel.setForeground(fg);
+        Font clockFont = new Font("Monospaced", Font.BOLD, 24);
+        whiteLabel.setFont(clockFont);
+        blackLabel.setFont(clockFont);
+        whiteLabel.setOpaque(true);
+        blackLabel.setOpaque(true);
 
-        clockLabel.setFont(new Font("Monospaced", Font.BOLD, 22));
-        clockLabel.setForeground(fg);
-
-        add(nameLabel,  BorderLayout.WEST);
-        add(clockLabel, BorderLayout.EAST);
+        add(blackLabel);
+        add(whiteLabel);
+        refreshColors();
 
         localTick = new javax.swing.Timer(100, e -> {
-            if (active) {
-                millisLeft = Math.max(0, millisLeft - 100);
-                refresh();
-            }
+            if (activeSide == Side.WHITE) whiteMillis = Math.max(0, whiteMillis - 100);
+            else                          blackMillis  = Math.max(0, blackMillis  - 100);
+            refreshLabels();
         });
         localTick.start();
     }
 
-    public void sync(long millis, boolean isActive) {
-        this.millisLeft = millis;
-        this.active     = isActive;
-        refresh();
-        setBackground(isActive ? new Color(255, 230, 100) : getBackground());
+    // ── FIX: sync(long, long, Side) ──
+    public void sync(long wMs, long bMs, Side nextToMove) {
+        this.whiteMillis = wMs;
+        this.blackMillis = bMs;
+        this.activeSide  = nextToMove;
+        refreshLabels();
+        refreshColors();
     }
 
-    public void setPlayerName(String name) {
-        nameLabel.setText(name);
+    private void refreshLabels() {
+        whiteLabel.setText(GameState.formatTime(whiteMillis));
+        blackLabel.setText(GameState.formatTime(blackMillis));
+        whiteLabel.setForeground(whiteMillis < 30_000 ? Color.RED : Color.BLACK);
+        blackLabel.setForeground(blackMillis < 30_000 ? Color.RED : Color.WHITE);
     }
 
-    public void stop() { localTick.stop(); active = false; }
-
-    private void refresh() {
-        clockLabel.setText(GameState.formatTime(millisLeft));
-        clockLabel.setForeground(millisLeft < 30_000 ? Color.RED
-            : nameLabel.getForeground());
+    private void refreshColors() {
+        whiteLabel.setBackground(activeSide == Side.WHITE
+            ? new Color(255, 255, 200) : Color.WHITE);
+        blackLabel.setBackground(activeSide == Side.BLACK
+            ? new Color(80, 80, 80) : Color.DARK_GRAY);
     }
+
+    public void stop() { localTick.stop(); }
 }
