@@ -3,8 +3,6 @@ package chess.gui;
 import chess.client.ChessClient;
 import chess.client.MessageListener;
 import chess.shared.ChessMessage;
-import chess.shared.GameState;
-import chess.shared.MessageType;
 
 import com.github.bhlangonijr.chesslib.Side;
 
@@ -18,45 +16,44 @@ public class MainFrame extends JFrame implements MessageListener {
 
     private JLabel      waitingLabel;
     private BoardPanel  boardPanel;
-    private JLabel      whiteClock;
-    private JLabel      blackClock;
+    private TimerPanel  timerPanel;
+
+    // Move history panel (Task 5.9)
+    private DefaultListModel<String> historyModel = new DefaultListModel<>();
+    private int moveNumber = 1;
 
     public MainFrame() {
         setTitle("Chess");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(600, 680);
+        setSize(700, 650);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // ── Waiting screen ──
+        // Waiting screen
         waitingLabel = new JLabel("Waiting for opponent…", SwingConstants.CENTER);
         waitingLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
         add(waitingLabel, BorderLayout.CENTER);
 
-        // ── Clock panel ──
-        JPanel clockPanel = new JPanel(new GridLayout(1, 2));
-        blackClock = new JLabel("10:00", SwingConstants.CENTER);
-        whiteClock = new JLabel("10:00", SwingConstants.CENTER);
-        blackClock.setFont(new Font("Monospaced", Font.BOLD, 22));
-        whiteClock.setFont(new Font("Monospaced", Font.BOLD, 22));
-        blackClock.setOpaque(true); blackClock.setBackground(Color.DARK_GRAY); blackClock.setForeground(Color.WHITE);
-        whiteClock.setOpaque(true); whiteClock.setBackground(Color.WHITE);     whiteClock.setForeground(Color.BLACK);
-        clockPanel.add(blackClock);
-        clockPanel.add(whiteClock);
-        clockPanel.setPreferredSize(new Dimension(600, 50));
-        add(clockPanel, BorderLayout.SOUTH);
+        // Timer panel at the bottom
+        timerPanel = new TimerPanel();
+        add(timerPanel, BorderLayout.SOUTH);
+
+        // Move history on the right
+        JList<String> historyList = new JList<>(historyModel);
+        historyList.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        JScrollPane scroll = new JScrollPane(historyList);
+        scroll.setPreferredSize(new Dimension(110, 0));
+        scroll.setBorder(BorderFactory.createTitledBorder("Moves"));
+        add(scroll, BorderLayout.EAST);
     }
 
-    public void setClient(ChessClient client) {
-        this.client = client;
-    }
+    public void setClient(ChessClient client) { this.client = client; }
 
     public void showWaiting() {
         waitingLabel.setVisible(true);
         if (boardPanel != null) boardPanel.setVisible(false);
     }
 
-    // ── MessageListener implementation ──
     @Override
     public void onMessage(ChessMessage msg) {
         switch (msg.type) {
@@ -71,10 +68,13 @@ public class MainFrame extends JFrame implements MessageListener {
                 break;
 
             case BOARD_UPDATE:
-                if (boardPanel != null) {
-                    boardPanel.updateFromFen(msg.fen);
-                }
-                updateClocks(msg.whiteMillis, msg.blackMillis);
+                if (boardPanel != null) boardPanel.updateFromFen(msg.fen);
+                timerPanel.sync(msg.whiteMillis, msg.blackMillis,
+                    // next to move is opposite of who just moved
+                    msg.fen.contains(" w ") ? Side.WHITE : Side.BLACK);
+                // Add move to history
+                if (msg.moveUci != null)
+                    historyModel.addElement(moveNumber++ + ". " + msg.moveUci);
                 break;
 
             case INVALID_MOVE:
@@ -82,16 +82,27 @@ public class MainFrame extends JFrame implements MessageListener {
                 break;
 
             case GAME_OVER:
-                if (boardPanel != null) boardPanel.updateFromFen(msg.fen);
-                updateClocks(msg.whiteMillis, msg.blackMillis);
-                if (boardPanel != null) boardPanel.setLocked(true);
-                JOptionPane.showMessageDialog(this,
+                if (boardPanel != null) {
+                    boardPanel.updateFromFen(msg.fen);
+                    boardPanel.setLocked(true);
+                }
+                timerPanel.stop();
+                int choice = JOptionPane.showOptionDialog(this,
                     "Game Over: " + msg.result,
-                    "Game Over", JOptionPane.INFORMATION_MESSAGE);
+                    "Game Over", JOptionPane.YES_NO_OPTION,
+                    JOptionPane.INFORMATION_MESSAGE, null,
+                    new String[]{"Play Again", "Exit"}, "Exit");
+                if (choice == 0) {
+                    dispose();
+                    ChessClient.main(new String[]{});
+                } else {
+                    System.exit(0);
+                }
                 break;
 
             case OPPONENT_DISCONNECTED:
                 if (boardPanel != null) boardPanel.setLocked(true);
+                timerPanel.stop();
                 JOptionPane.showMessageDialog(this,
                     "Opponent disconnected.",
                     "Disconnected", JOptionPane.WARNING_MESSAGE);
@@ -99,21 +110,11 @@ public class MainFrame extends JFrame implements MessageListener {
         }
     }
 
-    // ── Private helpers ──
-
     private void showBoard() {
         remove(waitingLabel);
         boardPanel = new BoardPanel(myColor, client);
         add(boardPanel, BorderLayout.CENTER);
         revalidate();
         repaint();
-    }
-
-    private void updateClocks(long whiteMs, long blackMs) {
-        whiteClock.setText(GameState.formatTime(whiteMs));
-        blackClock.setText(GameState.formatTime(blackMs));
-        // Turn clocks red when under 30 seconds
-        whiteClock.setForeground(whiteMs < 30_000 ? Color.RED : Color.BLACK);
-        blackClock.setForeground(blackMs < 30_000 ? Color.RED : Color.WHITE);
     }
 }

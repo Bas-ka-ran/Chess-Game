@@ -11,4 +11,5 @@ chess/client/ChessClient.class
 chess/client/NetworkThread.class
 chess/server/ClientHandler.class
 chess/server/ChessServer.class
+chess/gui/BoardPanel$1.class
 chess/shared/ChessMessage.class
