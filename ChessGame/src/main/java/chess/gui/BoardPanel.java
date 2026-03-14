@@ -1,27 +1,38 @@
-//package chess.gui;
+package chess.gui;
+
+import chess.client.ChessClient;
+import com.github.bhlangonijr.chesslib.Side;
+
 import javax.swing.*;
 import java.awt.*;
 
 public class BoardPanel extends JPanel {
-    private static final int TILE_SIZE = 80;
 
-    public BoardPanel() {
-        setPreferredSize(new Dimension(TILE_SIZE * 8, TILE_SIZE * 8));
+    private ChessClient client;
+    private Side myColor;
+    private boolean locked = false;
+
+    public BoardPanel(Side myColor, ChessClient client) {
+        this.myColor = myColor;
+        this.client  = client;
+        setPreferredSize(new Dimension(600, 600));
+        setBackground(Color.GRAY);
     }
 
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
-                // Determine tile color
-                if ((row + col) % 2 == 0) {
-                    g.setColor(new Color(235, 235, 208)); // Light
-                } else {
-                    g.setColor(new Color(119, 148, 85)); // Dark
-                }
-                g.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-            }
-        }
+    public void updateFromFen(String fen) {
+        // Will be fully implemented in Phase 5
+        repaint();
+    }
+
+    public void flashInvalid() {
+        // Will be fully implemented in Phase 5
+        setBackground(Color.RED);
+        Timer t = new Timer(300, e -> setBackground(Color.GRAY));
+        t.setRepeats(false);
+        t.start();
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
     }
 }
