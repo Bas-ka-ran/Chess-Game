@@ -1,6 +1,7 @@
 package chess.shared;
 
 public enum MessageType {
+    PLAYER_INFO,
     ASSIGN_COLOR,
     GAME_START,
     MOVE,

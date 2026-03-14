@@ -6,22 +6,29 @@ import chess.shared.MessageType;
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.Side;
 import com.github.bhlangonijr.chesslib.move.Move;
-import java.util.List;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.List;
 
 public class GameSession implements Runnable {
 
-    private final ClientHandler[] handlers = new ClientHandler[2];
-    private final Board  board  = new Board();
-    private final long[] clocks;          // [0]=White ms, [1]=Black ms
-    private long lastTickNanos;
-    private boolean gameOver = false;
+    // chesslib standard starting FEN as a literal (avoids constant name issues)
+    private static final String START_FEN =
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+    private final ClientHandler[] handlers     = new ClientHandler[2];
+    private final String[]        names        = {"Player 1", "Player 2"};
+    private final boolean[]       nameReceived = {false, false};
+    private final Board           board        = new Board();
+    private final long[]          clocks;
+    private long    lastTickNanos;
+    private boolean gameOver    = false;
+    private String  lastMoveUci = null;
 
     public GameSession(Socket s1, Socket s2, long timeLimitMs) throws IOException {
-        handlers[0] = new ClientHandler(s1); // White
-        handlers[1] = new ClientHandler(s2); // Black
+        handlers[0] = new ClientHandler(s1);
+        handlers[1] = new ClientHandler(s2);
         handlers[0].setSession(this);
         handlers[1].setSession(this);
         clocks = new long[]{ timeLimitMs, timeLimitMs };
@@ -29,32 +36,30 @@ public class GameSession implements Runnable {
 
     @Override
     public void run() {
-        // Load standard starting position
-        board.loadFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-
-        // Tell each client their colour
-        handlers[0].send(ChessMessage.assignColor("WHITE"));
-        handlers[1].send(ChessMessage.assignColor("BLACK"));
-
-        // Signal game start + send initial board state
-        handlers[0].send(ChessMessage.simple(MessageType.GAME_START));
-        handlers[1].send(ChessMessage.simple(MessageType.GAME_START));
-        broadcastUpdate();
-
-        lastTickNanos = System.nanoTime();
-
-        // Start handler threads (they block reading from clients)
+        board.loadFromFen(START_FEN);
+        // Start handler threads — each will send PLAYER_INFO first
         new Thread(handlers[0]).start();
         new Thread(handlers[1]).start();
     }
 
-    // ── Task 3.4 + 3.5 + 3.6 + 3.7: move validation, clocks, broadcast ──
     public synchronized void onMessage(ClientHandler sender, ChessMessage msg) {
+
+        // ── Handle name registration ──
+        if (msg.type == MessageType.PLAYER_INFO) {
+            int idx = (sender == handlers[0]) ? 0 : 1;
+            names[idx] = (msg.playerName != null && !msg.playerName.isBlank())
+                         ? msg.playerName : "Player " + (idx + 1);
+            nameReceived[idx] = true;
+            System.out.println("Player " + (idx + 1) + " registered as: " + names[idx]);
+            if (nameReceived[0] && nameReceived[1]) startGame();
+            return;
+        }
+
         if (gameOver) return;
         if (msg.type != MessageType.MOVE) return;
 
-        int senderIdx = (sender == handlers[0]) ? 0 : 1;
-        Side expected = (senderIdx == 0) ? Side.WHITE : Side.BLACK;
+        int  senderIdx = (sender == handlers[0]) ? 0 : 1;
+        Side expected  = (senderIdx == 0) ? Side.WHITE : Side.BLACK;
 
         // Wrong turn?
         if (board.getSideToMove() != expected) {
@@ -62,19 +67,18 @@ public class GameSession implements Runnable {
             return;
         }
 
-        // ── Task 3.5: deduct clock time ──
+        // Deduct clock
         long now = System.nanoTime();
         clocks[senderIdx] -= (now - lastTickNanos) / 1_000_000L;
         lastTickNanos = now;
 
-        // Flag fall (time out)?
         if (clocks[senderIdx] <= 0) {
             clocks[senderIdx] = 0;
             broadcastGameOver(senderIdx == 0 ? "0-1" : "1-0");
             return;
         }
 
-        // ── Task 3.4: validate move against legal moves ──
+        // Validate move — legalMoves() returns List<Move>, not MoveList
         List<Move> legal = board.legalMoves();
         Move move = new Move(msg.moveUci, board.getSideToMove());
 
@@ -83,16 +87,13 @@ public class GameSession implements Runnable {
             return;
         }
 
+        lastMoveUci = msg.moveUci;
         board.doMove(move);
 
-        // ── Task 3.7: check end conditions ──
         if (checkEndConditions()) return;
-
-        // ── Task 3.6: broadcast updated board to both clients ──
         broadcastUpdate();
     }
 
-    // ── Task 3.8: handle disconnection ──
     public synchronized void onDisconnect(ClientHandler disconnected) {
         if (gameOver) return;
         gameOver = true;
@@ -100,11 +101,21 @@ public class GameSession implements Runnable {
         other.send(ChessMessage.simple(MessageType.OPPONENT_DISCONNECTED));
     }
 
-    // ── Helpers ──
+    // ── Private helpers ──
+
+    private void startGame() {
+        handlers[0].send(ChessMessage.assignColor("WHITE", names[1]));
+        handlers[1].send(ChessMessage.assignColor("BLACK", names[0]));
+        handlers[0].send(ChessMessage.simple(MessageType.GAME_START));
+        handlers[1].send(ChessMessage.simple(MessageType.GAME_START));
+        broadcastUpdate();
+        lastTickNanos = System.nanoTime();
+        System.out.println("Game started: " + names[0] + " (White) vs " + names[1] + " (Black)");
+    }
 
     private void broadcastUpdate() {
         ChessMessage update = ChessMessage.boardUpdate(
-            board.getFen(), clocks[0], clocks[1]
+            board.getFen(), clocks[0], clocks[1], lastMoveUci
         );
         handlers[0].send(update);
         handlers[1].send(update);
@@ -120,27 +131,14 @@ public class GameSession implements Runnable {
         System.out.println("Game over: " + result);
     }
 
-    // Returns true if game ended
     private boolean checkEndConditions() {
         String result = null;
-
-        if (board.isMated()) {
-            // The side that just moved wins
-            result = (board.getSideToMove() == Side.WHITE) ? "0-1" : "1-0";
-        } else if (board.isStaleMate()) {
-            result = "1/2-1/2";
-        } else if (board.isInsufficientMaterial()) {
-            result = "1/2-1/2";
-        } else if (board.isRepetition()) {
-            result = "1/2-1/2";
-        } else if (board.getHalfMoveCounter() >= 100) {
-            result = "1/2-1/2";
-        }
-
-        if (result != null) {
-            broadcastGameOver(result);
-            return true;
-        }
+        if      (board.isMated())                   result = (board.getSideToMove() == Side.WHITE) ? "0-1" : "1-0";
+        else if (board.isStaleMate())               result = "1/2-1/2";
+        else if (board.isInsufficientMaterial())    result = "1/2-1/2";
+        else if (board.isRepetition())              result = "1/2-1/2";
+        else if (board.getHalfMoveCounter() >= 100) result = "1/2-1/2";
+        if (result != null) { broadcastGameOver(result); return true; }
         return false;
     }
 }
