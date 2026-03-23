@@ -156,17 +156,29 @@ public class MainFrame extends JFrame implements MessageListener {
                 showBoard();
                 resignButton.setEnabled(true);
                 drawButton.setEnabled(true);
-                statusLabel.setText("⏳ White has 30 seconds to make the first move…");
+                statusLabel.setText("⏳ White has 30s to make their first move (free time)…");
                 statusLabel.setVisible(true);
             }
 
             case BOARD_UPDATE -> {
                 if (boardPanel != null) boardPanel.updateFromFen(msg.fen);
 
-                // Hide status label after first move received
-                if (!firstMoveReceived && msg.moveUci != null && !msg.moveUci.isBlank()) {
-                    firstMoveReceived = true;
-                    statusLabel.setVisible(false);
+                if (msg.moveUci != null && !msg.moveUci.isBlank()) {
+                    historyModel.addElement(moveNumber++ + ". " + msg.moveUci);
+
+                    if (!firstMoveReceived) {
+                        // White just made first move — show Black's 30s notice
+                        firstMoveReceived = true;
+                        boolean blackIsNext = msg.fen.contains(" b ");
+                        if (blackIsNext) {
+                            String nextPlayer = (myColor == Side.BLACK) ? "You have" : (opponentName + " has");
+                            statusLabel.setText("⏳ " + nextPlayer + " 30s to make the first move (free time)…");
+                            statusLabel.setVisible(true);
+                        }
+                    } else if (moveNumber == 3) {
+                        // Both first moves done — hide status
+                        statusLabel.setVisible(false);
+                    }
                 }
 
                 boolean whiteToMove = msg.fen != null && msg.fen.contains(" w ");
@@ -178,11 +190,6 @@ public class MainFrame extends JFrame implements MessageListener {
                     opponentTimer.sync(msg.whiteMillis, whiteToMove);
                 }
 
-                if (msg.moveUci != null && !msg.moveUci.isBlank()) {
-                    historyModel.addElement(moveNumber++ + ". " + msg.moveUci);
-                }
-
-                // Re-enable draw button after a move (server cleared pending offer)
                 drawButton.setEnabled(true);
             }
 
