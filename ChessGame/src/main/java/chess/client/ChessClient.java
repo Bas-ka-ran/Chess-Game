@@ -37,6 +37,15 @@ public class ChessClient {
         net.start();
     }
 
+    public void sendMessage(ChessMessage msg) {
+        try {
+            out.writeObject(msg);
+            out.flush();
+        } catch (IOException e) {
+            System.err.println("Failed to send message: " + e.getMessage());
+        }
+    }
+
     public void sendMove(String uci) {
         try {
             out.writeObject(ChessMessage.move(uci));

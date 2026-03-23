@@ -3,6 +3,7 @@ package chess.gui;
 import chess.client.ChessClient;
 import chess.client.MessageListener;
 import chess.shared.ChessMessage;
+import chess.shared.MessageType;
 
 import com.github.bhlangonijr.chesslib.Side;
 
@@ -17,54 +18,86 @@ public class MainFrame extends JFrame implements MessageListener {
     private String      opponentName = "Opponent";
 
     private JLabel      waitingLabel;
-    private JLabel      statusLabel;     // shows "Waiting for first move..."
+    private JLabel      statusLabel;
     private BoardPanel  boardPanel;
     private TimerPanel  myTimer;
     private TimerPanel  opponentTimer;
 
+    // Action buttons
+    private JButton resignButton;
+    private JButton drawButton;
+
     private final DefaultListModel<String> historyModel = new DefaultListModel<>();
-    private int moveNumber = 1;
+    private int     moveNumber        = 1;
     private boolean firstMoveReceived = false;
 
     public MainFrame(String myName) {
         this.myName = myName;
         setTitle("Chess — " + myName);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(720, 760);
+        setSize(760, 780);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // Waiting screen
+        // ── Waiting screen ──
         waitingLabel = new JLabel(
             "<html><center>⏳ Waiting for opponent…<br><small>" + myName + "</small></center></html>",
             SwingConstants.CENTER);
         waitingLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
         add(waitingLabel, BorderLayout.CENTER);
 
-        // Opponent timer — TOP
+        // ── Opponent timer — TOP ──
         opponentTimer = new TimerPanel("Opponent", new Color(50, 50, 50), Color.WHITE);
         add(opponentTimer, BorderLayout.NORTH);
 
-        // Bottom wrapper: my timer + status label
+        // ── Bottom panel: status + buttons + my timer ──
         JPanel bottomPanel = new JPanel(new BorderLayout());
-        myTimer = new TimerPanel(myName, new Color(240, 240, 240), Color.BLACK);
 
-        // Status label — shown until first move is made
-        statusLabel = new JLabel(
-            "⏳ Waiting for White to make their first move (30s)…",
+        // Status label (first move countdown notice)
+        statusLabel = new JLabel("⏳ Waiting for White to make the first move (30s)…",
             SwingConstants.CENTER);
         statusLabel.setFont(new Font("SansSerif", Font.ITALIC, 13));
-        statusLabel.setForeground(new Color(180, 100, 0));
+        statusLabel.setForeground(new Color(160, 80, 0));
         statusLabel.setOpaque(true);
-        statusLabel.setBackground(new Color(255, 250, 220));
+        statusLabel.setBackground(new Color(255, 248, 210));
         statusLabel.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
-        statusLabel.setVisible(false); // hidden until GAME_START
+        statusLabel.setVisible(false);
 
-        bottomPanel.add(statusLabel, BorderLayout.NORTH);
-        bottomPanel.add(myTimer,     BorderLayout.SOUTH);
+        // ── Resign + Draw buttons ──
+        resignButton = new JButton("🏳 Resign");
+        drawButton   = new JButton("🤝 Offer Draw");
+
+        resignButton.setFocusPainted(false);
+        drawButton.setFocusPainted(false);
+
+        resignButton.setBackground(new Color(200, 60, 60));
+        resignButton.setForeground(Color.WHITE);
+        resignButton.setFont(new Font("SansSerif", Font.BOLD, 13));
+
+        drawButton.setBackground(new Color(70, 130, 180));
+        drawButton.setForeground(Color.WHITE);
+        drawButton.setFont(new Font("SansSerif", Font.BOLD, 13));
+
+        resignButton.addActionListener(e -> handleResign());
+        drawButton.addActionListener(e -> handleDrawRequest());
+
+        // Disable until game starts
+        resignButton.setEnabled(false);
+        drawButton.setEnabled(false);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 6));
+        buttonPanel.setBackground(new Color(230, 230, 230));
+        buttonPanel.add(resignButton);
+        buttonPanel.add(drawButton);
+
+        myTimer = new TimerPanel(myName, new Color(240, 240, 240), Color.BLACK);
+
+        bottomPanel.add(statusLabel,  BorderLayout.NORTH);
+        bottomPanel.add(buttonPanel,  BorderLayout.CENTER);
+        bottomPanel.add(myTimer,      BorderLayout.SOUTH);
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // Move history — RIGHT
+        // ── Move history — RIGHT ──
         JList<String> historyList = new JList<>(historyModel);
         historyList.setFont(new Font("Monospaced", Font.PLAIN, 13));
         JScrollPane scroll = new JScrollPane(historyList);
@@ -80,62 +113,118 @@ public class MainFrame extends JFrame implements MessageListener {
         if (boardPanel   != null) boardPanel.setVisible(false);
     }
 
+    // ── Button handlers ──
+
+    private void handleResign() {
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Are you sure you want to resign?",
+            "Resign", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirm == JOptionPane.YES_OPTION) {
+            client.sendMessage(ChessMessage.simple(MessageType.RESIGN));
+            resignButton.setEnabled(false);
+            drawButton.setEnabled(false);
+        }
+    }
+
+    private void handleDrawRequest() {
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Offer a draw to " + opponentName + "?",
+            "Offer Draw", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (confirm == JOptionPane.YES_OPTION) {
+            client.sendMessage(ChessMessage.simple(MessageType.DRAW_REQUEST));
+            drawButton.setEnabled(false); // prevent spam
+            JOptionPane.showMessageDialog(this,
+                "Draw offer sent to " + opponentName + ".",
+                "Draw Offered", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    // ── MessageListener ──
+
     @Override
     public void onMessage(ChessMessage msg) {
         switch (msg.type) {
 
-            case ASSIGN_COLOR:
+            case ASSIGN_COLOR -> {
                 myColor      = "WHITE".equals(msg.moveUci) ? Side.WHITE : Side.BLACK;
                 opponentName = (msg.playerName != null) ? msg.playerName : "Opponent";
                 opponentTimer.setPlayerName(opponentName);
                 setTitle("Chess — " + myName + " (" + myColor + ") vs " + opponentName);
-                break;
+            }
 
-            case GAME_START:
+            case GAME_START -> {
                 showBoard();
-                // Show first-move waiting status
-                statusLabel.setText("⏳ Waiting for " +
-                    (myColor == Side.BLACK ? opponentName : "you") +
-                    " to make the first move (30s)…");
+                resignButton.setEnabled(true);
+                drawButton.setEnabled(true);
+                statusLabel.setText("⏳ White has 30 seconds to make the first move…");
                 statusLabel.setVisible(true);
-                break;
+            }
 
-            case BOARD_UPDATE:
+            case BOARD_UPDATE -> {
                 if (boardPanel != null) boardPanel.updateFromFen(msg.fen);
 
-                // Hide status after first real move arrives
+                // Hide status label after first move received
                 if (!firstMoveReceived && msg.moveUci != null && !msg.moveUci.isBlank()) {
                     firstMoveReceived = true;
                     statusLabel.setVisible(false);
                 }
 
                 boolean whiteToMove = msg.fen != null && msg.fen.contains(" w ");
-                boolean myTurn;
                 if (myColor == Side.WHITE) {
-                    myTurn = whiteToMove;
-                    myTimer.sync(msg.whiteMillis, myTurn);
-                    opponentTimer.sync(msg.blackMillis, !myTurn);
+                    myTimer.sync(msg.whiteMillis, whiteToMove);
+                    opponentTimer.sync(msg.blackMillis, !whiteToMove);
                 } else {
-                    myTurn = !whiteToMove;
-                    myTimer.sync(msg.blackMillis, myTurn);
-                    opponentTimer.sync(msg.whiteMillis, !myTurn);
+                    myTimer.sync(msg.blackMillis, !whiteToMove);
+                    opponentTimer.sync(msg.whiteMillis, whiteToMove);
                 }
 
                 if (msg.moveUci != null && !msg.moveUci.isBlank()) {
                     historyModel.addElement(moveNumber++ + ". " + msg.moveUci);
                 }
-                break;
 
-            case INVALID_MOVE:
+                // Re-enable draw button after a move (server cleared pending offer)
+                drawButton.setEnabled(true);
+            }
+
+            case INVALID_MOVE -> {
                 if (boardPanel != null) boardPanel.flashInvalid();
-                break;
+            }
 
-            case GAME_OVER:
+            // Opponent is offering a draw — show accept/decline dialog
+            case DRAW_REQUEST -> {
+                String requester = (msg.playerName != null) ? msg.playerName : opponentName;
+                int choice = JOptionPane.showOptionDialog(this,
+                    requester + " is offering a draw. Accept?",
+                    "Draw Offer",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE,
+                    null,
+                    new String[]{"Accept", "Decline"},
+                    "Decline");
+                if (choice == 0) {
+                    client.sendMessage(ChessMessage.simple(MessageType.DRAW_ACCEPT));
+                } else {
+                    client.sendMessage(ChessMessage.simple(MessageType.DRAW_DECLINE));
+                    drawButton.setEnabled(true);
+                }
+            }
+
+            // Our draw offer was declined
+            case DRAW_DECLINE -> {
+                drawButton.setEnabled(true);
+                JOptionPane.showMessageDialog(this,
+                    opponentName + " declined your draw offer.",
+                    "Draw Declined", JOptionPane.INFORMATION_MESSAGE);
+            }
+
+            case GAME_OVER -> {
                 if (boardPanel != null) {
                     boardPanel.updateFromFen(msg.fen);
                     boardPanel.setLocked(true);
                 }
                 statusLabel.setVisible(false);
+                resignButton.setEnabled(false);
+                drawButton.setEnabled(false);
                 myTimer.stop();
                 opponentTimer.stop();
                 int choice = JOptionPane.showOptionDialog(this,
@@ -145,17 +234,19 @@ public class MainFrame extends JFrame implements MessageListener {
                     new String[]{"Play Again", "Exit"}, "Exit");
                 if (choice == 0) { dispose(); ChessClient.main(new String[]{}); }
                 else System.exit(0);
-                break;
+            }
 
-            case OPPONENT_DISCONNECTED:
+            case OPPONENT_DISCONNECTED -> {
                 if (boardPanel != null) boardPanel.setLocked(true);
                 statusLabel.setVisible(false);
+                resignButton.setEnabled(false);
+                drawButton.setEnabled(false);
                 myTimer.stop();
                 opponentTimer.stop();
                 JOptionPane.showMessageDialog(this,
                     opponentName + " disconnected.",
                     "Disconnected", JOptionPane.WARNING_MESSAGE);
-                break;
+            }
         }
     }
 

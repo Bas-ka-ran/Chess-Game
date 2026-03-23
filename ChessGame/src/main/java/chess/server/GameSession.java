@@ -16,7 +16,7 @@ public class GameSession implements Runnable {
 
     private static final String START_FEN =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    private static final long FIRST_MOVE_TIMEOUT_MS = 30_000L; // 30 seconds
+    private static final long FIRST_MOVE_TIMEOUT_MS = 30_000L;
 
     private final ClientHandler[]        handlers     = new ClientHandler[2];
     private final String[]               names        = {"Player 1", "Player 2"};
@@ -24,16 +24,18 @@ public class GameSession implements Runnable {
     private final Board                  board        = new Board();
     private final long[]                 clocks;
 
-    private long    lastTickNanos;
-    private boolean gameOver        = false;
+    // Fix: lastTickNanos only set AFTER first move — 30s is free
+    private long    lastTickNanos     = 0;
+    private boolean gameOver          = false;
     private boolean firstMoveReceived = false;
-    private String  lastMoveUci     = null;
+    private boolean drawPending       = false;   // true while draw offer is open
+    private int     drawRequesterIdx  = -1;      // who sent the draw request
+    private String  lastMoveUci       = null;
 
-    // Schedulers
     private final ScheduledExecutorService scheduler =
         Executors.newSingleThreadScheduledExecutor();
-    private ScheduledFuture<?> firstMoveTimer  = null;
-    private ScheduledFuture<?> clockWatchdog   = null;
+    private ScheduledFuture<?> firstMoveTimer = null;
+    private ScheduledFuture<?> clockWatchdog  = null;
 
     public GameSession(Socket s1, Socket s2, long timeLimitMs) throws IOException {
         handlers[0] = new ClientHandler(s1);
@@ -51,62 +53,107 @@ public class GameSession implements Runnable {
     }
 
     public synchronized void onMessage(ClientHandler sender, ChessMessage msg) {
+        int senderIdx = (sender == handlers[0]) ? 0 : 1;
 
-        // ── Receive player names first ──
+        // ── Player name handshake ──
         if (msg.type == MessageType.PLAYER_INFO) {
-            int idx = (sender == handlers[0]) ? 0 : 1;
-            names[idx] = (msg.playerName != null && !msg.playerName.isBlank())
-                         ? msg.playerName : "Player " + (idx + 1);
-            nameReceived[idx] = true;
-            System.out.println("Player " + (idx+1) + ": " + names[idx]);
+            names[senderIdx] = (msg.playerName != null && !msg.playerName.isBlank())
+                               ? msg.playerName : "Player " + (senderIdx + 1);
+            nameReceived[senderIdx] = true;
+            System.out.println("Name registered: " + names[senderIdx]);
             if (nameReceived[0] && nameReceived[1]) startGame();
             return;
         }
 
         if (gameOver) return;
 
-        // ── Handle MOVE ──
-        if (msg.type == MessageType.MOVE) {
+        switch (msg.type) {
 
-            int  senderIdx = (sender == handlers[0]) ? 0 : 1;
-            Side expected  = (senderIdx == 0) ? Side.WHITE : Side.BLACK;
+            // ── Move ──
+            case MOVE -> {
+                Side expected = (senderIdx == 0) ? Side.WHITE : Side.BLACK;
+                if (board.getSideToMove() != expected) {
+                    sender.send(ChessMessage.simple(MessageType.INVALID_MOVE));
+                    return;
+                }
 
-            if (board.getSideToMove() != expected) {
-                sender.send(ChessMessage.simple(MessageType.INVALID_MOVE));
-                return;
+                // Cancel first-move timer; start main clocks from now
+                if (!firstMoveReceived) {
+                    firstMoveReceived = true;
+                    if (firstMoveTimer != null) firstMoveTimer.cancel(false);
+                    // ── Fix: main clock only starts from first move ──
+                    lastTickNanos = System.nanoTime();
+                    startClockWatchdog();
+                }
+
+                // Deduct time
+                long now = System.nanoTime();
+                clocks[senderIdx] -= (now - lastTickNanos) / 1_000_000L;
+                lastTickNanos = now;
+
+                if (clocks[senderIdx] <= 0) {
+                    clocks[senderIdx] = 0;
+                    broadcastGameOver(senderIdx == 0 ? "0-1 (time)" : "1-0 (time)");
+                    return;
+                }
+
+                // Validate move
+                List<Move> legal = board.legalMoves();
+                Move move = new Move(msg.moveUci, board.getSideToMove());
+                if (!legal.contains(move)) {
+                    sender.send(ChessMessage.simple(MessageType.INVALID_MOVE));
+                    return;
+                }
+
+                lastMoveUci = msg.moveUci;
+                board.doMove(move);
+                drawPending = false; // move cancels any open draw offer
+
+                if (checkEndConditions()) return;
+                broadcastUpdate();
             }
 
-            // Cancel first-move timeout on the very first move
-            if (!firstMoveReceived) {
-                firstMoveReceived = true;
-                if (firstMoveTimer != null) firstMoveTimer.cancel(false);
+            // ── Resign ──
+            case RESIGN -> {
+                // Sender resigns — opponent wins
+                String result = (senderIdx == 0) ? "0-1 (resignation)" : "1-0 (resignation)";
+                System.out.println(names[senderIdx] + " resigned.");
+                broadcastGameOver(result);
             }
 
-            // ── Deduct clock ──
-            long now = System.nanoTime();
-            clocks[senderIdx] -= (now - lastTickNanos) / 1_000_000L;
-            lastTickNanos = now;
-
-            if (clocks[senderIdx] <= 0) {
-                clocks[senderIdx] = 0;
-                broadcastGameOver(senderIdx == 0 ? "0-1" : "1-0");
-                return;
+            // ── Draw request ──
+            case DRAW_REQUEST -> {
+                if (drawPending) return; // ignore duplicate requests
+                drawPending      = true;
+                drawRequesterIdx = senderIdx;
+                // Forward to opponent
+                int opponentIdx = 1 - senderIdx;
+                handlers[opponentIdx].send(ChessMessage.drawRequest(names[senderIdx]));
+                System.out.println(names[senderIdx] + " offered a draw.");
             }
 
-            // ── Validate move ──
-            List<Move> legal = board.legalMoves();
-            Move move = new Move(msg.moveUci, board.getSideToMove());
-
-            if (!legal.contains(move)) {
-                sender.send(ChessMessage.simple(MessageType.INVALID_MOVE));
-                return;
+            // ── Draw accepted ──
+            case DRAW_ACCEPT -> {
+                if (!drawPending) return;
+                // Only the non-requester can accept
+                if (senderIdx == drawRequesterIdx) return;
+                drawPending = false;
+                System.out.println(names[senderIdx] + " accepted the draw.");
+                broadcastGameOver("1/2-1/2 (agreement)");
             }
 
-            lastMoveUci = msg.moveUci;
-            board.doMove(move);
+            // ── Draw declined ──
+            case DRAW_DECLINE -> {
+                if (!drawPending) return;
+                if (senderIdx == drawRequesterIdx) return;
+                drawPending = false;
+                // Notify requester that draw was declined
+                handlers[drawRequesterIdx].send(
+                    ChessMessage.simple(MessageType.DRAW_DECLINE));
+                System.out.println(names[senderIdx] + " declined the draw.");
+            }
 
-            if (checkEndConditions()) return;
-            broadcastUpdate();
+            default -> {}
         }
     }
 
@@ -114,8 +161,8 @@ public class GameSession implements Runnable {
         if (gameOver) return;
         gameOver = true;
         shutdown();
-        ClientHandler other = (disconnected == handlers[0]) ? handlers[1] : handlers[0];
-        other.send(ChessMessage.simple(MessageType.OPPONENT_DISCONNECTED));
+        int otherIdx = (disconnected == handlers[0]) ? 1 : 0;
+        handlers[otherIdx].send(ChessMessage.simple(MessageType.OPPONENT_DISCONNECTED));
     }
 
     // ── Private helpers ──
@@ -127,45 +174,37 @@ public class GameSession implements Runnable {
         handlers[1].send(ChessMessage.simple(MessageType.GAME_START));
         broadcastUpdate();
 
-        lastTickNanos = System.nanoTime();
-
-        // ── Fix 2: 30-second first move timeout ──
+        // ── Fix: 30s first-move timeout — main clocks NOT started yet ──
         firstMoveTimer = scheduler.schedule(() -> {
             synchronized (this) {
                 if (!firstMoveReceived && !gameOver) {
-                    System.out.println("First move timeout! White forfeits.");
-                    // White (handler[0]) failed to move — Black wins
-                    broadcastGameOver("0-1 (timeout — no first move)");
+                    System.out.println("First move timeout — White forfeits.");
+                    broadcastGameOver("0-1 (no first move in 30s)");
                 }
             }
         }, FIRST_MOVE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
-        // ── Fix 3: real-time clock watchdog (ticks every second) ──
+        System.out.println("Game: " + names[0] + " (W) vs " + names[1] + " (B)");
+    }
+
+    // Clock watchdog only starts after the first move
+    private void startClockWatchdog() {
         clockWatchdog = scheduler.scheduleAtFixedRate(() -> {
             synchronized (this) {
-                if (gameOver) return;
-
-                // Figure out which side is currently to move
+                if (gameOver || !firstMoveReceived) return;
                 int activeIdx = (board.getSideToMove() == Side.WHITE) ? 0 : 1;
-
-                // Compute how much time has elapsed since last tick
-                long now     = System.nanoTime();
-                long elapsed = (now - lastTickNanos) / 1_000_000L;
-
+                long elapsed  = (System.nanoTime() - lastTickNanos) / 1_000_000L;
                 if (clocks[activeIdx] - elapsed <= 0) {
                     clocks[activeIdx] = 0;
-                    broadcastGameOver(activeIdx == 0 ? "0-1" : "1-0");
+                    broadcastGameOver(activeIdx == 0 ? "0-1 (time)" : "1-0 (time)");
                 }
             }
         }, 1, 1, TimeUnit.SECONDS);
-
-        System.out.println("Game started: " + names[0] + " (White) vs " + names[1] + " (Black)");
     }
 
     private void broadcastUpdate() {
         ChessMessage update = ChessMessage.boardUpdate(
-            board.getFen(), clocks[0], clocks[1], lastMoveUci
-        );
+            board.getFen(), clocks[0], clocks[1], lastMoveUci);
         handlers[0].send(update);
         handlers[1].send(update);
     }
@@ -174,8 +213,7 @@ public class GameSession implements Runnable {
         gameOver = true;
         shutdown();
         ChessMessage msg = ChessMessage.gameOver(
-            board.getFen(), clocks[0], clocks[1], result
-        );
+            board.getFen(), clocks[0], clocks[1], result);
         handlers[0].send(msg);
         handlers[1].send(msg);
         System.out.println("Game over: " + result);
@@ -183,18 +221,18 @@ public class GameSession implements Runnable {
 
     private boolean checkEndConditions() {
         String result = null;
-        if      (board.isMated())                  result = (board.getSideToMove() == Side.WHITE) ? "0-1" : "1-0";
-        else if (board.isStaleMate())               result = "1/2-1/2";
-        else if (board.isInsufficientMaterial())    result = "1/2-1/2";
-        else if (board.isRepetition())              result = "1/2-1/2";
-        else if (board.getHalfMoveCounter() >= 100) result = "1/2-1/2";
+        if      (board.isMated())                   result = (board.getSideToMove() == Side.WHITE) ? "0-1" : "1-0";
+        else if (board.isStaleMate())                result = "1/2-1/2";
+        else if (board.isInsufficientMaterial())     result = "1/2-1/2";
+        else if (board.isRepetition())               result = "1/2-1/2";
+        else if (board.getHalfMoveCounter() >= 100)  result = "1/2-1/2";
         if (result != null) { broadcastGameOver(result); return true; }
         return false;
     }
 
     private void shutdown() {
-        if (firstMoveTimer  != null) firstMoveTimer.cancel(false);
-        if (clockWatchdog   != null) clockWatchdog.cancel(false);
+        if (firstMoveTimer != null) firstMoveTimer.cancel(false);
+        if (clockWatchdog  != null) clockWatchdog.cancel(false);
         scheduler.shutdown();
     }
 }
