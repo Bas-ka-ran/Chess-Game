@@ -25,6 +25,7 @@ public class ChessClient {
         this.myName = name;
         socket = new Socket(host, port);
 
+        // IMPORTANT: out before in — avoids handshake deadlock
         out = new ObjectOutputStream(socket.getOutputStream());
         out.flush();
         in  = new ObjectInputStream(socket.getInputStream());
@@ -33,10 +34,10 @@ public class ChessClient {
         out.writeObject(ChessMessage.playerInfo(name));
         out.flush();
 
-        NetworkThread net = new NetworkThread(in, listener);
-        net.start();
+        new NetworkThread(in, listener).start();
     }
 
+    // Send any message type (resign, draw request, draw accept/decline)
     public void sendMessage(ChessMessage msg) {
         try {
             out.writeObject(msg);
@@ -46,13 +47,9 @@ public class ChessClient {
         }
     }
 
+    // Convenience wrapper for moves
     public void sendMove(String uci) {
-        try {
-            out.writeObject(ChessMessage.move(uci));
-            out.flush();
-        } catch (IOException e) {
-            System.err.println("Failed to send move: " + e.getMessage());
-        }
+        sendMessage(ChessMessage.move(uci));
     }
 
     public void close() {
@@ -63,12 +60,10 @@ public class ChessClient {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
 
-            // Ask for server address
             String host = JOptionPane.showInputDialog(
                 null, "Enter server address:", "Server", JOptionPane.QUESTION_MESSAGE);
             if (host == null || host.isBlank()) host = "localhost";
 
-            // Ask for player name
             String name = JOptionPane.showInputDialog(
                 null, "Enter your name:", "Player Name", JOptionPane.QUESTION_MESSAGE);
             if (name == null || name.isBlank()) name = "Anonymous";
