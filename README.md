@@ -130,7 +130,7 @@ You need **3 terminals** — one for the server and one per player.
 
 ### Terminal 1 — Start the Server
 ```bash
-java -cp target/chess-game-1.0.jar chess.server.ChessServer
+java -cp target/chess-game.jar chess.server.ChessServer
 ```
 Output:
 ```
@@ -140,7 +140,7 @@ Waiting for player 1...
 
 ### Terminal 2 — Player 1 (White)
 ```bash
-java -cp target/chess-game-1.0.jar chess.client.ChessClient
+java -cp target/chess-game.jar chess.client.ChessClient
 ```
 - Enter server address (default: `localhost`)
 - Enter your name
@@ -148,7 +148,7 @@ java -cp target/chess-game-1.0.jar chess.client.ChessClient
 
 ### Terminal 3 — Player 2 (Black)
 ```bash
-java -cp target/chess-game-1.0.jar chess.client.ChessClient
+java -cp target/chess-game.jar chess.client.ChessClient
 ```
 - Enter server address (default: `localhost`)
 - Enter your name
